@@ -58,12 +58,12 @@ func mkUndefined() Val {
 
 func showVal(v Val) string {
 	var s string
-	switch {
-	case v.flag == ValueInt:
+	switch v.flag {
+	case ValueInt:
 		s = Num(v.valI).pretty()
-	case v.flag == ValueBool:
+	case ValueBool:
 		s = Bool(v.valB).pretty()
-	case v.flag == Undefined:
+	case Undefined:
 		s = "Undefined"
 	}
 	return s
@@ -81,12 +81,12 @@ const (
 
 func showType(t Type) string {
 	var s string
-	switch {
-	case t == TyInt:
+	switch t {
+	case TyInt:
 		s = "Int"
-	case t == TyBool:
+	case TyBool:
 		s = "Bool"
-	case t == TyIllTyped:
+	case TyIllTyped:
 		s = "Illtyped"
 	}
 	return s
@@ -120,9 +120,14 @@ type Decl struct {
 	rhs Exp
 }
 type IfThenElse struct {
-	cond     Exp
-	thenStmt Stmt
-	elseStmt Stmt
+	cond      Exp
+	thenBlock Block
+	elseBlock Block
+}
+
+type While struct {
+	cond Exp
+	body Block
 }
 
 type Assign struct {
@@ -132,6 +137,8 @@ type Assign struct {
 
 // Expression cases (incomplete)
 
+type Block [1]Stmt
+type Print [1]Exp
 type Bool bool
 type Num int
 type Mult [2]Exp
@@ -163,6 +170,35 @@ func (decl Decl) pretty() string {
 	return decl.lhs + " := " + decl.rhs.pretty()
 }
 
+func (a Assign) pretty() string {
+	return a.lhs + " = " + a.rhs.pretty()
+}
+
+func (ite IfThenElse) pretty() string {
+	var x string
+	x = "if "
+	x += ite.cond.pretty()
+	x += ite.thenBlock.pretty()
+	x += "else "
+	x += ite.elseBlock.pretty()
+	return x
+}
+
+func (while While) pretty() string {
+	var x string
+	x = "while "
+	x += while.cond.pretty()
+	x += while.body.pretty()
+	return x
+}
+
+func (print Print) pretty() string {
+	var x string
+	x = "print "
+	x += print[0].pretty()
+	return x
+}
+
 // eval
 
 func (stmt Seq) eval(s ValState) {
@@ -173,17 +209,21 @@ func (stmt Seq) eval(s ValState) {
 func (ite IfThenElse) eval(s ValState) {
 	v := ite.cond.eval(s)
 	if v.flag == ValueBool {
-		switch {
-		case v.valB:
-			ite.thenStmt.eval(s)
-		case !v.valB:
-			ite.elseStmt.eval(s)
+		if v.valB {
+			ite.thenBlock.eval(s)
+		} else {
+			ite.elseBlock.eval(s)
 		}
-
 	} else {
 		fmt.Printf("if-then-else eval fail")
 	}
+}
 
+func (while While) eval(s ValState) {
+	v := while.cond.eval(s)
+	for v.valB {
+		while.body.eval(s)
+	}
 }
 
 // Maps are represented via points.
@@ -194,6 +234,33 @@ func (decl Decl) eval(s ValState) {
 	s[x] = v
 }
 
+func (a Assign) eval(s ValState) {
+	v := a.rhs.eval(s)
+	x := (string)(a.lhs)
+	sVal := s[x]
+	if sVal.flag == v.flag {
+		s[x] = v
+	} else {
+		s[x] = mkUndefined()
+	}
+}
+
+func (x Var) eval(s ValState) Val {
+	y := (string)(x)
+	vy, ok := s[y]
+	if ok {
+		switch vy.flag {
+		case ValueInt:
+			return mkInt(vy.valI)
+		case ValueBool:
+			return mkBool(vy.valB)
+		case Undefined:
+			return mkUndefined()
+		}
+	}
+	return mkUndefined()
+}
+
 // type check
 
 func (stmt Seq) check(t TyState) bool {
@@ -201,6 +268,10 @@ func (stmt Seq) check(t TyState) bool {
 		return false
 	}
 	return stmt[1].check(t)
+}
+
+func (print Print) check(t TyState) bool {
+	return true
 }
 
 func (decl Decl) check(t TyState) bool {
@@ -214,15 +285,39 @@ func (decl Decl) check(t TyState) bool {
 	return true
 }
 
+func (ite IfThenElse) check(t TyState) bool {
+	return ite.cond.infer(t) == TyBool && ite.thenBlock.check(t) && ite.elseBlock.check(t)
+}
+
+func (while While) check(t TyState) bool {
+	return while.cond.infer(t) == TyBool && while.body.check(t)
+}
+
 func (a Assign) check(t TyState) bool {
 	x := (string)(a.lhs)
 	return t[x] == a.rhs.infer(t)
+}
+
+func (b Block) check(t TyState) bool {
+	tInner := make(map[string]Type)
+	for key, value := range t {
+		tInner[key] = value
+	}
+	return b[0].check(tInner)
 }
 
 /////////////////////////
 // Exp instances
 
 // pretty print
+
+func (b Block) pretty() string {
+	var x string
+	x = "{\n"
+	x += b[0].pretty()
+	x += "\n}"
+	return x
+}
 
 func (x Var) pretty() string {
 	return (string)(x)
@@ -335,6 +430,25 @@ func (e Or) pretty() string {
 }
 
 // Evaluator
+
+func (b Block) eval(s ValState) {
+	sInner := make(map[string]Val)
+	for key, value := range s {
+		sInner[key] = value
+	}
+	b[0].eval(sInner)
+
+	for key, value := range s {
+		if sInner[key].flag == value.flag {
+			s[key] = sInner[key]
+		}
+	}
+}
+
+func (print Print) eval(s ValState) {
+	n := print[0].eval(s)
+	fmt.Printf("\n%s", showVal(n))
+}
 
 func (x Bool) eval(s ValState) Val {
 	return mkBool((bool)(x))
@@ -564,19 +678,54 @@ func equal(x, y Exp) Exp {
 	return (Equals)([2]Exp{x, y})
 }
 
-/*func lookup(g Context) Type {
-
+func assign(x string, y Exp) Stmt {
+	assignment := Assign{
+		lhs: x,
+		rhs: y,
+	}
+	return assignment
 }
 
-func declare(x, y Exp, g Context) Exp {
-	return (Declare)()
-}*/
-/*
-func runMultiline(e Exp) {
-	// we need something here for multiple lines
-	// like store variables and what they are somewhere
+func print(x Exp) Stmt {
+	return (Print)([1]Exp{x})
+}
 
-}*/
+func declare(x string, y Exp) Stmt {
+	declaration := Decl{
+		lhs: x,
+		rhs: y,
+	}
+	return declaration
+}
+
+func block(x Stmt) Stmt {
+	return (Block)([1]Stmt{x})
+}
+
+func ifThenElse(x Exp, y, z Block) Stmt {
+	ifThenElse := IfThenElse{
+		cond:      x,
+		thenBlock: y,
+		elseBlock: z,
+	}
+	return ifThenElse
+}
+
+func while(x Exp, y Block) Stmt {
+	while := While{
+		cond: x,
+		body: y,
+	}
+	return while
+}
+
+func seq(x, y Stmt) Stmt {
+	return (Seq)([2]Stmt{x, y})
+}
+
+func vars(x string) Exp {
+	return Var(x)
+}
 
 // Examples
 
@@ -587,6 +736,24 @@ func run(e Exp) {
 	fmt.Printf("\n %s", e.pretty())
 	fmt.Printf("\n %s", showVal(e.eval(s)))
 	fmt.Printf("\n %s", showType(e.infer(t)))
+}
+
+func printProg(block Stmt) {
+	t := make(map[string]Type)
+	fmt.Printf("\n******* ")
+	fmt.Printf("\n%t", block.check(t))
+	fmt.Printf("\n%s", block.pretty())
+}
+
+func runProg(block Stmt) {
+	s := make(map[string]Val)
+	t := make(map[string]Type)
+	fmt.Printf("\n******* ")
+	if block.check(t) {
+		block.eval(s)
+	} else {
+		fmt.Printf("Code Error, please check your code")
+	}
 }
 
 func ex1() {
@@ -621,9 +788,19 @@ func ex6() {
 	run(ast)
 }
 
+func ex7() {
+	prog := block(block(seq(declare("x", boolean(true)), assign("x", negate(less(number(3), number(20)))))))
+	runProg(prog)
+}
+
+func ex8() {
+	prog := block(print(vars("x2")))
+	runProg(prog)
+}
+
 func main() {
 
 	fmt.Printf("\n")
 
-	ex6()
+	ex8()
 }
