@@ -220,8 +220,7 @@ func (ite IfThenElse) eval(s ValState) {
 }
 
 func (while While) eval(s ValState) {
-	v := while.cond.eval(s)
-	for v.valB {
+	for while.cond.eval(s).valB {
 		while.body.eval(s)
 	}
 }
@@ -698,7 +697,7 @@ func declare(x string, y Exp) Stmt {
 	return declaration
 }
 
-func block(x Stmt) Stmt {
+func block(x Stmt) Block {
 	return (Block)([1]Stmt{x})
 }
 
@@ -798,9 +797,15 @@ func ex8() {
 	runProg(prog)
 }
 
+func ex9() {
+	prog := block(seq(declare("x", number(1)), while(less(vars("x"), number(10)), block(seq(assign("x", plus(vars("x"), number(1))), print(vars("x")))))))
+	//	//
+	runProg(prog)
+}
+
 func main() {
 
 	fmt.Printf("\n")
 
-	ex8()
+	ex9()
 }
