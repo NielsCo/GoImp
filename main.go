@@ -136,6 +136,7 @@ type Bool bool
 type Num int
 type Mult [2]Exp
 type Plus [2]Exp
+type Minus [2]Exp
 type And [2]Exp
 type Or [2]Exp
 type Var string
@@ -243,6 +244,17 @@ func (e Mult) pretty() string {
 	return x
 }
 
+func (e Minus) pretty() string {
+	var x string
+	x = "("
+	x += e[0].pretty()
+	x += "-"
+	x += e[1].pretty()
+	x += ")"
+
+	return x
+}
+
 func (e Plus) pretty() string {
 
 	var x string
@@ -303,6 +315,15 @@ func (e Plus) eval(s ValState) Val {
 	n2 := e[1].eval(s)
 	if n1.flag == ValueInt && n2.flag == ValueInt {
 		return mkInt(n1.valI + n2.valI)
+	}
+	return mkUndefined()
+}
+
+func (e Minus) eval(s ValState) Val {
+	n1 := e[0].eval(s)
+	n2 := e[1].eval(s)
+	if n1.flag == ValueInt && n2.flag == ValueInt {
+		return mkInt(n1.valI - n2.valI)
 	}
 	return mkUndefined()
 }
@@ -370,6 +391,15 @@ func (e Plus) infer(t TyState) Type {
 	return TyIllTyped
 }
 
+func (e Minus) infer(t TyState) Type {
+	t1 := e[0].infer(t)
+	t2 := e[1].infer(t)
+	if t1 == TyInt && t2 == TyInt {
+		return TyInt
+	}
+	return TyIllTyped
+}
+
 func (e And) infer(t TyState) Type {
 	t1 := e[0].infer(t)
 	t2 := e[1].infer(t)
@@ -406,6 +436,10 @@ func plus(x, y Exp) Exp {
 	// We first build the AST value [2]Exp{x,y}.
 	// Then cast this value (of type [2]Exp) into a value of type Plus.
 
+}
+
+func minus(x, y Exp) Exp {
+	return (Minus)([2]Exp{x, y})
 }
 
 func mult(x, y Exp) Exp {
@@ -447,11 +481,15 @@ func ex3() {
 	run(ast)
 }
 
+func ex4() {
+	ast := minus(mult(number(1), number(2)), number(5))
+
+	run(ast)
+}
+
 func main() {
 
 	fmt.Printf("\n")
 
-	ex1()
-	ex2()
-	ex3()
+	ex4()
 }
