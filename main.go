@@ -138,13 +138,22 @@ type Mult [2]Exp
 type Plus [2]Exp
 type Minus [2]Exp
 type And [2]Exp
+type Negation [1]Exp
+type Lesser [2]Exp
+type Equals [2]Exp
 type Or [2]Exp
 type Var string
+
+/*type Context*/
 
 /////////////////////////
 // Stmt instances
 
 // pretty print
+
+// TODO: Vars, Decl, Context, Block, while, print, if & else, Lesser, Equal,
+
+// Optional Todo for parser: Grouping!
 
 func (stmt Seq) pretty() string {
 	return stmt[0].pretty() + "; " + stmt[1].pretty()
@@ -279,6 +288,40 @@ func (e And) pretty() string {
 	return x
 }
 
+func (e Negation) pretty() string {
+
+	var x string
+	x = "(!"
+	x += e[0].pretty()
+	x += ")"
+
+	return x
+}
+
+func (e Lesser) pretty() string {
+
+	var x string
+	x = "("
+	x += e[0].pretty()
+	x += "<"
+	x += e[1].pretty()
+	x += ")"
+
+	return x
+}
+
+func (e Equals) pretty() string {
+
+	var x string
+	x = "("
+	x += e[0].pretty()
+	x += "=="
+	x += e[1].pretty()
+	x += ")"
+
+	return x
+}
+
 func (e Or) pretty() string {
 
 	var x string
@@ -324,6 +367,35 @@ func (e Minus) eval(s ValState) Val {
 	n2 := e[1].eval(s)
 	if n1.flag == ValueInt && n2.flag == ValueInt {
 		return mkInt(n1.valI - n2.valI)
+	}
+	return mkUndefined()
+}
+
+func (e Negation) eval(s ValState) Val {
+	b1 := e[0].eval(s)
+	if b1.flag == ValueBool {
+		return mkBool(!b1.valB)
+	}
+	return mkUndefined()
+}
+
+func (e Lesser) eval(s ValState) Val {
+	b1 := e[0].eval(s)
+	b2 := e[1].eval(s)
+	if b1.flag == ValueInt && b2.flag == ValueInt {
+		return mkBool(b1.valI < b2.valI)
+	}
+	return mkUndefined()
+}
+
+func (e Equals) eval(s ValState) Val {
+	b1 := e[0].eval(s)
+	b2 := e[1].eval(s)
+	switch {
+	case b1.flag == ValueInt && b2.flag == ValueInt:
+		return mkBool(b1.valI == b2.valI)
+	case b1.flag == ValueBool && b2.flag == ValueBool:
+		return mkBool(b1.valB == b2.valB)
 	}
 	return mkUndefined()
 }
@@ -409,6 +481,32 @@ func (e And) infer(t TyState) Type {
 	return TyIllTyped
 }
 
+func (e Negation) infer(t TyState) Type {
+	t1 := e[0].infer(t)
+	if t1 == TyBool {
+		return TyBool
+	}
+	return TyIllTyped
+}
+
+func (e Equals) infer(t TyState) Type {
+	t1 := e[0].infer(t)
+	t2 := e[1].infer(t)
+	if t1 == TyBool && t2 == TyBool || t1 == TyInt && t2 == TyInt {
+		return TyBool
+	}
+	return TyIllTyped
+}
+
+func (e Lesser) infer(t TyState) Type {
+	t1 := e[0].infer(t)
+	t2 := e[1].infer(t)
+	if t1 == TyInt && t2 == TyInt {
+		return TyBool
+	}
+	return TyIllTyped
+}
+
 func (e Or) infer(t TyState) Type {
 	t1 := e[0].infer(t)
 	t2 := e[1].infer(t)
@@ -454,6 +552,32 @@ func or(x, y Exp) Exp {
 	return (Or)([2]Exp{x, y})
 }
 
+func negate(x Exp) Exp {
+	return (Negation)([1]Exp{x})
+}
+
+func less(x, y Exp) Exp {
+	return (Lesser)([2]Exp{x, y})
+}
+
+func equal(x, y Exp) Exp {
+	return (Equals)([2]Exp{x, y})
+}
+
+/*func lookup(g Context) Type {
+
+}
+
+func declare(x, y Exp, g Context) Exp {
+	return (Declare)()
+}*/
+/*
+func runMultiline(e Exp) {
+	// we need something here for multiple lines
+	// like store variables and what they are somewhere
+
+}*/
+
 // Examples
 
 func run(e Exp) {
@@ -487,9 +611,19 @@ func ex4() {
 	run(ast)
 }
 
+func ex5() {
+	ast := negate(or(boolean(true), boolean(true)))
+	run(ast)
+}
+
+func ex6() {
+	ast := negate(less(number(3), number(20)))
+	run(ast)
+}
+
 func main() {
 
 	fmt.Printf("\n")
 
-	ex4()
+	ex6()
 }
