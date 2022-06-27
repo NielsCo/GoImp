@@ -803,9 +803,32 @@ func ex9() {
 	runProg(prog)
 }
 
+func ex10() {
+	// this checks ifThenElse and to see whether re-declaring in an inner block will overwrite outer variables or not
+	prog := block(seq(declare("x", number(1)), seq(ifThenElse(equal(vars("x"), number(1)), block(declare("x", boolean(true))), block(assign("x", number(3)))),
+		print(vars("x")))))
+	// this checks ifThenElse for the else block
+	prog2 := block(seq(declare("x", number(1)), seq(ifThenElse(equal(vars("x"), number(2)), block(declare("x", boolean(true))), block(assign("x", number(3)))),
+		print(vars("x")))))
+	runProg(prog)
+	runProg(prog2)
+}
+
+func ex11() {
+	// checks whether shadowing works without overwriting the outer-scope type
+	prog := block(seq(declare("x", number(1)), seq(block(seq(declare("x", boolean(true)), print(vars("x")))), print(vars("x")))))
+	runProg(prog)
+}
+
+func ex12() {
+	// checks that inner-block value changes get applied in the outer scope if the type is the same
+	prog := block(seq(declare("x", number(1)), seq(block(seq(declare("x", number(2)), print(vars("x")))), print(vars("x")))))
+	runProg(prog)
+}
+
 func main() {
 
 	fmt.Printf("\n")
 
-	ex9()
+	ex12()
 }
