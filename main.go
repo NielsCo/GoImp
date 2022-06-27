@@ -431,12 +431,15 @@ func (e Or) pretty() string {
 // Evaluator
 
 func (b Block) eval(s ValState) {
+	// create an inner-scope that copies all the values from the external scope
 	sInner := make(map[string]Val)
 	for key, value := range s {
 		sInner[key] = value
 	}
+	// eval the inner-scope
 	b[0].eval(sInner)
 
+	// now only update the values of the outer-scope of the values that still have the same type (shadowing)
 	for key, value := range s {
 		if sInner[key].flag == value.flag {
 			s[key] = sInner[key]
