@@ -158,10 +158,6 @@ type Var string
 
 // pretty print
 
-// TODO: Vars, Decl, Context, Block, while, print, if & else, Lesser, Equal,
-
-// Optional Todo for parser: Grouping!
-
 func (stmt Seq) pretty() string {
 	return stmt[0].pretty() + "; " + stmt[1].pretty()
 }
